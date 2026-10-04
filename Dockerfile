@@ -9,7 +9,7 @@ RUN apk add --no-cache python3 make gcc g++ pkgconfig pixman-dev cairo-dev pango
 COPY package*.json ./
 
 # Install production dependencies
-RUN npm ci --omit=dev
+RUN npm install --omit=dev
 
 # Copy application source code
 COPY . .
