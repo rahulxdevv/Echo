@@ -21,7 +21,7 @@ module.exports = {
   category: 'Levelling',
   name: 'level',
   description: 'Levelling system commands',
-  slashOnly: false,
+  slashOnly: true,
 
   data: new SlashCommandBuilder()
     .setName('level')
