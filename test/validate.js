@@ -1,12 +1,6 @@
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
-
-// Mock environment variables for CI/test environment if not provided
-process.env.DISCORD_TOKEN = process.env.DISCORD_TOKEN || 'mock-discord-token-for-ci-testing-purposes-1234567890';
-process.env.MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/echo_test';
-process.env.CLIENT_ID = process.env.CLIENT_ID || '123456789012345678';
-
 const ROOT = path.join(__dirname, '..');
 const SRC = path.join(ROOT, 'src');
 
