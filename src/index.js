@@ -70,10 +70,12 @@ async function startBot() {
     for (const file of eventFiles) {
       const filePath = path.join(eventsPath, file);
       const event = require(filePath);
-      if (event.once) {
-        client.once(event.name, (...args) => event.execute(...args));
-      } else {
-        client.on(event.name, (...args) => event.execute(...args, client));
+      if (event.name && typeof event.execute === 'function') {
+        if (event.once) {
+          client.once(event.name, (...args) => event.execute(...args));
+        } else {
+          client.on(event.name, (...args) => event.execute(...args, client));
+        }
       }
     }
     log("Events", `Loaded Events: ${eventFiles.length}`);
