@@ -1,0 +1,40 @@
+name: 🐛 Bug Report
+description: Create a report to help us fix a bug or unexpected behavior in Echo
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for reporting a bug! Please fill out the details below so we can reproduce and fix it quickly.
+  - type: input
+    id: command
+    attributes:
+      label: Which command or feature is affected?
+      placeholder: "e.g., /giveaway start or !ban"
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: Describe the bug
+      description: A clear and concise description of what happened vs what you expected to happen.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps To Reproduce
+      description: Steps to reproduce the behavior.
+      placeholder: |
+        1. Run `/giveaway start ...`
+        2. Click 'Enter Giveaway'
+        3. See error
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Console Error / Logs (if applicable)
+      description: Please copy and paste any terminal errors or stack traces.
+      render: shell
