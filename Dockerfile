@@ -2,20 +2,17 @@ FROM node:20-alpine
 
 WORKDIR /app
 
-# Install build tools for native modules (canvas, etc.)
-RUN apk add --no-cache python3 make gcc g++ pkgconfig pixman-dev cairo-dev pango-dev fontconfig-dev
+# Install native build tools and libraries for canvas & image processing
+RUN apk add --no-cache python3 make gcc g++ pkgconfig pixman-dev cairo-dev pango-dev fontconfig-dev librsvg-dev giflib-dev
 
-# Copy dependency manifest
-COPY package.json ./
+# Copy dependency manifests
+COPY package*.json ./
 
-# Install dependencies
-RUN npm install --only=production
+# Install production dependencies
+RUN npm ci --omit=dev
 
-# Copy the rest of the application code
+# Copy application source code
 COPY . .
-
-# Expose the port where the bot runs (typically 3000 for Discord bots)
-EXPOSE 3000
 
 # Start the bot
 CMD ["node", "src/index.js"]
