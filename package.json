@@ -1,0 +1,38 @@
+{
+  "name": "discord-bot",
+  "version": "1.0.0",
+  "description": "A feature-rich Discord.js bot with slash and prefix commands",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "nodemon src/index.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "discord",
+    "bot",
+    "discord.js",
+    "mongodb",
+    "slash-commands"
+  ],
+  "author": "rahulxdevv",
+  "license": "CC-BY-NC-4.0",
+  "type": "commonjs",
+  "dependencies": {
+    "@napi-rs/canvas": "^0.1.100",
+    "axios": "^1.15.2",
+    "canvas": "^3.2.2",
+    "chalk": "^4.1.2",
+    "discord-arts": "^0.7.1",
+    "discord-html-transcripts": "^3.2.0",
+    "discord.js": "^14.25.1",
+    "dns2": "^2.1.0",
+    "dotenv": "^17.2.3",
+    "mongoose": "^9.0.2",
+    "musicard": "^3.0.1",
+    "riffy": "^1.0.9"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.14"
+  }
+}
