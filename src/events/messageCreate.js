@@ -174,7 +174,10 @@ module.exports = {
                 userContent: message.content,
                 assistantContent: String(text),
               });
-              await message.reply(String(text).substring(0, 2000));
+              await message.reply({
+                content: String(text).substring(0, 2000),
+                allowedMentions: { parse: [], repliedUser: false },
+              });
             }
           } catch (error) {
             logAIError('auto', error);
