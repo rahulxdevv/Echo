@@ -4,6 +4,15 @@ const { createNowPlayingCard } = require('../../utils/musicCard');
 const { replyError, replyNotice, replyWithCard } = require('../../utils/respond');
 
 // Helper functions
+function safePlay(player) {
+  if (!player || player.playing || player.paused) return;
+  if (player.queue && player.queue.size === 0 && !player.current) return;
+  try {
+    const result = player.play();
+    if (result && typeof result.catch === 'function') result.catch(() => {});
+  } catch {}
+}
+
 function createTrackMessage(prefix, track) {
   return `${prefix} | **${track.info.title}** by **${track.info.author || 'Unknown artist'}** • ${formatDuration(track.info.length)}`;
 }
@@ -260,7 +269,7 @@ module.exports = {
             track.info.requester = requester;
             player.queue.add(track);
           }
-          if (!player.playing && !player.paused) player.play();
+          safePlay(player);
           return replyNotice(target, `Added playlist to queue | **${playlistInfo.name}** • ${tracks.length} tracks`);
         }
 
@@ -269,7 +278,7 @@ module.exports = {
           if (!track) return replyError(target, 'No results were found for that query.');
           track.info.requester = requester;
           player.queue.add(track);
-          if (!player.playing && !player.paused) player.play();
+          safePlay(player);
           return replyNotice(target, createTrackMessage('Added in queue', track));
         }
         return replyError(target, 'No results were found for that query.');
@@ -296,11 +305,7 @@ module.exports = {
       newPlayer.queue.add(track);
 
       setTimeout(() => {
-        try {
-          if (!newPlayer.playing && !newPlayer.paused) newPlayer.play();
-        } catch (error) {
-          console.error('Delayed play error:', error);
-        }
+        safePlay(newPlayer);
       }, 350);
 
       return replyNotice(target, createTrackMessage('Now playing', track));
