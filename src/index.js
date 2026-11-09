@@ -38,23 +38,34 @@ const client = new Client({
   ],
 });
 
-const nodes = [
-  {
-    host: process.env.LAVALINK_HOST || "lavalink.jirayu.net",
-    password: process.env.LAVALINK_PASSWORD || "youshallnotpass",
-    port: Number(process.env.LAVALINK_PORT || 13592),
-    secure: String(process.env.LAVALINK_SECURE || "false").toLowerCase() === "true",
-  },
-];
+const lavalinkHost = String(process.env.LAVALINK_HOST || '').trim();
+const lavalinkPort = Number(String(process.env.LAVALINK_PORT || '').trim());
+const nodes = lavalinkHost && Number.isInteger(lavalinkPort) && lavalinkPort > 0
+  ? [
+      {
+        host: lavalinkHost,
+        password: String(process.env.LAVALINK_PASSWORD || '').trim(),
+        port: lavalinkPort,
+        secure: String(process.env.LAVALINK_SECURE || "false").toLowerCase() === "true",
+      },
+    ]
+  : [];
 
-client.riffy = new Riffy(client, nodes, {
-  send: (payload) => {
-    const guild = client.guilds.cache.get(payload.d.guild_id);
-    if (guild) guild.shard.send(payload);
-  },
-  defaultSearchPlatform: "ytmsearch",
-  restVersion: "v4",
-});
+client.riffy = nodes.length
+  ? new Riffy(client, nodes, {
+      send: (payload) => {
+        const guild = client.guilds.cache.get(payload.d.guild_id);
+        if (guild) guild.shard.send(payload);
+      },
+      defaultSearchPlatform: "ytmsearch",
+      restVersion: "v4",
+    })
+  : null;
+
+client.lavalinkConfigured = nodes.length > 0;
+if (!nodes.length) {
+  log("Lavalink", "No LAVALINK_HOST set, music disabled.");
+}
 
 async function startBot() {
 
@@ -64,7 +75,7 @@ async function startBot() {
     if (!process.env.MONGODB_URI) missing.push('MONGODB_URI');
     if (!process.env.CLIENT_ID) missing.push('CLIENT_ID');
     if (missing.length > 0) {
-      log('Error', `Missing required env vars: ${missing.join(', ')}. Set them in Dokploy before deploying.`);
+      log('Error', `Missing required env vars: ${missing.join(', ')}. Check your environment config.`);
       process.exit(1);
     }
 
@@ -89,39 +100,41 @@ async function startBot() {
     }
     log("Events", `Loaded Events: ${eventFiles.length}`);
 
-    client.riffy.on("nodeConnect", (node) => {
-      log("Lavalink", `Lavalink ${node.name} Node: Ready!`);
-    });
+    if (client.riffy) {
+      client.riffy.on("nodeConnect", (node) => {
+        log("Lavalink", `Lavalink ${node.name} Node: Ready!`);
+      });
 
-    client.riffy.on("nodeError", (node, error) => {
-      log("Error", `Lavalink ${node.name} Node Error: ${error.message}`);
-    });
+      client.riffy.on("nodeError", (node, error) => {
+        log("Error", `Lavalink ${node.name} Node Error: ${error.message}`);
+      });
 
-    client.riffy.on("trackStart", async (player, track) => {
-      const channel = client.channels.cache.get(player.textChannel);
-      if (!channel) return;
+      client.riffy.on("trackStart", async (player, track) => {
+        const channel = client.channels.cache.get(player.textChannel);
+        if (!channel) return;
 
-      try {
-        const attachment = await createNowPlayingCard(track, player.position || 0);
-        await channel.send({ files: [attachment] });
-      } catch (error) {
-        console.error('Track start card error:', error);
-        await channel.send(`Now playing | **${track.info.title}** by **${track.info.author || 'Unknown artist'}**`);
-      }
-    });
-
-    client.riffy.on("queueEnd", async (player) => {
-      const channel = client.channels.cache.get(player.textChannel);
-      const autoplay = false;
-      if (autoplay) {
-        player.autoplay(player);
-      } else {
-        player.destroy();
-        if (channel) {
-          await channel.send("The queue has finished. Add another track whenever you're ready.");
+        try {
+          const attachment = await createNowPlayingCard(track, player.position || 0);
+          await channel.send({ files: [attachment] });
+        } catch (error) {
+          console.error('Track start card error:', error);
+          await channel.send(`Now playing | **${track.info.title}** by **${track.info.author || 'Unknown artist'}**`);
         }
-      }
-    });
+      });
+
+      client.riffy.on("queueEnd", async (player) => {
+        const channel = client.channels.cache.get(player.textChannel);
+        const autoplay = false;
+        if (autoplay) {
+          player.autoplay(player);
+        } else {
+          player.destroy();
+          if (channel) {
+            await channel.send("The queue has finished. Add another track whenever you're ready.");
+          }
+        }
+      });
+    }
 
     client.on("raw", (d) => {
       if (
@@ -131,7 +144,7 @@ async function startBot() {
         ].includes(d.t)
       )
         return;
-      client.riffy.updateVoiceState(d);
+      client.riffy?.updateVoiceState(d);
     });
 
     log("Bot", "Logging into Discord...");
