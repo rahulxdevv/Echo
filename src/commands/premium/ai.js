@@ -108,7 +108,11 @@ module.exports = {
           `**Prompt:** ${prompt}\n\n**Response:**\n${String(aiResponse).substring(0, 1800)}`
         );
 
-        await interaction.editReply({ flags: MessageFlags.IsComponentsV2, components: [container] });
+        await interaction.editReply({
+          flags: MessageFlags.IsComponentsV2,
+          components: [container],
+          allowedMentions: { parse: [] },
+        });
       } catch (error) {
         logAIError('chat', error);
         const safeMessage = toUserErrorMessage(error, { isCustom: hasCustom });
