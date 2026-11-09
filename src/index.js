@@ -40,10 +40,10 @@ const client = new Client({
 
 const nodes = [
   {
-    host: "lavalink.jirayu.net",
-    password: "youshallnotpass",
-    port: 13592,
-    secure: false,
+    host: process.env.LAVALINK_HOST || "lavalink.jirayu.net",
+    password: process.env.LAVALINK_PASSWORD || "youshallnotpass",
+    port: Number(process.env.LAVALINK_PORT || 13592),
+    secure: String(process.env.LAVALINK_SECURE || "false").toLowerCase() === "true",
   },
 ];
 
