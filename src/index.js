@@ -123,7 +123,8 @@ async function startBot() {
       });
 
       client.riffy.on("trackError", async (player, track, error) => {
-        log("Error", `Track error: ${error.message}`);
+        const reason = error?.exception?.message || error?.message || error?.exception?.severity || 'Unknown track error';
+        log("Error", `Track error: ${reason} (${track?.info?.title || 'unknown'})`);
       });
 
       client.riffy.on("queueEnd", async (player) => {
