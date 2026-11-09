@@ -30,7 +30,7 @@
     "dotenv": "^17.2.3",
     "mongoose": "^9.0.2",
     "musicard": "^3.0.1",
-    "riffy": "^1.0.9",
+    "riffy": "^1.0.12",
     "undici": "6.29.1"
   },
   "devDependencies": {
