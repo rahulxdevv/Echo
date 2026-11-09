@@ -25,6 +25,9 @@ jobs:
           node-version: ${{ matrix.node-version }}
           cache: 'npm'
 
+      - name: Install system dependencies for canvas
+        run: sudo apt-get update && sudo apt-get install -y libcairo2-dev libpango1.0-dev libjpeg8-dev libgif-dev librsvg2-dev libpixman-1-dev pkg-config python3 make g++
+
       - name: Install Dependencies
         run: npm ci
 
