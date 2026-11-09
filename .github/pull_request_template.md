@@ -33,7 +33,7 @@ Please provide a detailed summary of the changes proposed in this PR.
 
 ### ✅ Contributor Checklist
 
-- [ ] My code adheres to the project's **Discord Components V2** standard (`ContainerBuilder`, `TextDisplayBuilder`, etc. — **no `EmbedBuilder`**).
+- [ ] My code adheres to the project's **Discord Components V2** standard (`ContainerBuilder`, `TextDisplayBuilder`, etc. - **no `EmbedBuilder`**).
 - [ ] Both **slash command (`executeSlash`)** and **prefix command (`executePrefix`)** handlers are implemented (or explicitly marked `slashOnly: true`).
 - [ ] All new files export the required properties (`name`, `category`, `description`, `data`, `executeSlash`).
 - [ ] I have not committed any personal secrets, bot tokens, or `.env` files.

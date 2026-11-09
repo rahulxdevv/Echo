@@ -3,8 +3,8 @@ const { getLevelConfig, getUserLevel, addXp, calculateXpMultiplier, isOnCooldown
 module.exports = {
   name: 'messageCreate',
   async execute(message, client) {
-    // Ignore bots and system messages
     if (message.author.bot || !message.guild) return;
+    if (message.content.startsWith((client.config || require('../config')).prefix)) return;
 
     try {
       const config = await getLevelConfig(message.guild.id);

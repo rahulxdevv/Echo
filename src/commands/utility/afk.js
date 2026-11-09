@@ -68,7 +68,7 @@ function buildSetPayload(username, reason, scope) {
   const sep = new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small);
   const scopeTag = scope === 'global' ? `${emojis.common.global} Global AFK` : `${emojis.common.home} Server AFK`;
   const content = [
-    `${emojis.status.sleep} **AFK — ${rand(SET_MESSAGES)}**`,
+    `${emojis.status.sleep} **AFK - ${rand(SET_MESSAGES)}**`,
     ``,
     `**${username}** is now AFK  •  ${scopeTag}`,
     `**Reason:** ${reason}`,
@@ -87,7 +87,7 @@ function buildSetPayload(username, reason, scope) {
 function buildReturnPayload(username, duration) {
   const sep = new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small);
   const content = [
-    `${emojis.status.welcome_back} **Welcome back — ${rand(BACK_MESSAGES)}**`,
+    `${emojis.status.welcome_back} **Welcome back - ${rand(BACK_MESSAGES)}**`,
     ``,
     `**${username}** is no longer AFK`,
     `**Total AFK duration:** \`${duration}\``,
@@ -143,7 +143,7 @@ module.exports = {
         .setRequired(false))
     .addStringOption(o =>
       o.setName('scope')
-        .setDescription('AFK scope — guild only or everywhere (default: guild)')
+        .setDescription('AFK scope - guild only or everywhere (default: guild)')
         .setRequired(false)
         .addChoices(
           { name: 'This server only', value: 'guild' },

@@ -24,7 +24,7 @@
     "canvas": "^3.2.2",
     "chalk": "^4.1.2",
     "discord-arts": "^0.7.1",
-    "discord-html-transcripts": "^3.2.0",
+    "discord-html-transcripts": "~3.2.0",
     "discord.js": "^14.25.1",
     "dns2": "^2.1.0",
     "dotenv": "^17.2.3",
@@ -34,5 +34,21 @@
   },
   "devDependencies": {
     "nodemon": "^3.1.14"
+  },
+  "overrides": {
+    "follow-redirects": "^1.16.2",
+    "minimatch": "^11.0.5",
+    "discord.js": {
+      "undici": "6.29.1"
+    },
+    "@discordjs/rest": {
+      "undici": "6.29.1"
+    },
+    "discord-html-transcripts": {
+      "undici": "6.29.1"
+    },
+    "riffy": {
+      "undici": "8.12.4"
+    }
   }
 }

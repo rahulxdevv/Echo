@@ -4,7 +4,8 @@ const {
   removeParticipant,
   getGiveawayByMessageId,
   formatTimeRemaining,
-  buildGiveawayContainer
+  buildGiveawayContainer,
+  buildGiveawayPayload
 } = require('../utils/giveaway');
 const ticketInteraction = require('./ticketInteraction');
 const suggestionInteraction = require('./suggestionInteraction');
@@ -19,6 +20,25 @@ const {
   ButtonStyle
 } = require('discord.js');
 const emojis = require('../utils/emojis');
+
+function buildGiveawayFromData(giveaway) {
+  return buildGiveawayContainer({
+    prize: giveaway.prize,
+    winners: giveaway.winners,
+    endTime: giveaway.endTime,
+    hostId: giveaway.hostId,
+    participantsCount: (giveaway.participants || []).length,
+    isEnded: false,
+    isPaused: giveaway.paused,
+    isDrop: giveaway.type === 'drop',
+    dropEmoji: giveaway.dropEmoji,
+    banner: giveaway.banner,
+    thumbnail: giveaway.thumbnail,
+    color: giveaway.color,
+    title: giveaway.title
+  });
+}
+
 
 module.exports = {
   name: 'interactionCreate',
@@ -69,50 +89,46 @@ module.exports = {
           return interaction.reply({ content: 'This giveaway has already ended.', ephemeral: true });
         }
 
+        if (giveaway.paused) {
+          return interaction.reply({ content: 'This giveaway is currently paused.', ephemeral: true });
+        }
+
+        if (giveaway.type === 'drop') {
+          return interaction.reply({ content: `This is a gift drop - react with ${giveaway.dropEmoji || emojis.common.gift} to win!`, ephemeral: true });
+        }
+
         const result = await addParticipant(interaction.message.id, interaction.user.id);
 
         if (!result) {
           return interaction.reply({ content: 'Could not enter the giveaway.', ephemeral: true });
         }
 
+        if (result.paused) {
+          return interaction.reply({ content: 'This giveaway is currently paused.', ephemeral: true });
+        }
+
+        if (result.dropOnly) {
+          return interaction.reply({ content: `This is a gift drop - react with ${result.giveaway.dropEmoji || emojis.common.gift} to win!`, ephemeral: true });
+        }
+
         if (result.alreadyEntered) {
           const removeResult = await removeParticipant(interaction.message.id, interaction.user.id);
 
-          if (removeResult && removeResult.wasParticipant) {
-            const container = buildGiveawayContainer({
-              prize: removeResult.giveaway.prize,
-              winners: removeResult.giveaway.winners,
-              endTime: removeResult.giveaway.endTime,
-              hostId: removeResult.giveaway.hostId,
-              participantsCount: removeResult.giveaway.participants.length,
-              isEnded: false,
-              banner: removeResult.giveaway.banner,
-              thumbnail: removeResult.giveaway.thumbnail
-            });
+          if (removeResult?.paused) {
+            return interaction.reply({ content: 'This giveaway is currently paused.', ephemeral: true });
+          }
 
-            await interaction.message.edit({
-              flags: MessageFlags.IsComponentsV2,
-              components: [container]
-            });
+          if (removeResult && removeResult.wasParticipant) {
+            const container = buildGiveawayFromData(removeResult.giveaway);
+
+            await interaction.message.edit(buildGiveawayPayload(container));
 
             return interaction.reply({ content: 'You have left the giveaway.', ephemeral: true });
           }
         } else {
-          const container = buildGiveawayContainer({
-            prize: result.giveaway.prize,
-            winners: result.giveaway.winners,
-            endTime: result.giveaway.endTime,
-            hostId: result.giveaway.hostId,
-            participantsCount: result.giveaway.participants.length,
-            isEnded: false,
-            banner: result.giveaway.banner,
-            thumbnail: result.giveaway.thumbnail
-          });
+          const container = buildGiveawayFromData(result.giveaway);
 
-          await interaction.message.edit({
-            flags: MessageFlags.IsComponentsV2,
-            components: [container]
-          });
+          await interaction.message.edit(buildGiveawayPayload(container));
 
           return interaction.reply({ content: 'You have entered the giveaway! Click again to leave.', ephemeral: true });
         }
@@ -189,7 +205,9 @@ module.exports = {
       }
     } catch (error) {
       console.error('Error executing slash command:', error);
-      await replyError(interaction, 'Something went wrong while running that command. Please try again in a moment.');
+      if (!interaction.replied && !interaction.deferred) {
+        await replyError(interaction, 'Something went wrong while running that command. Please try again in a moment.');
+      }
     }
   }
 };

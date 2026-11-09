@@ -116,7 +116,7 @@ const rawEmojis = {
   common: {
     bullet: '•',
     dot: '🔹',
-    arrow: '⬆️',
+    arrow: '➡️',
     arrow_right: '➡️',
     back: '⬅️',
     first: '⏪',
@@ -240,6 +240,9 @@ const rawEmojis = {
     bot: '🤖',
   },
 
+  // Honeypot
+  honeypot: '🍯',
+  trap: '🪤',
   // Economy
   economy: {
     money: '💰',
@@ -259,6 +262,19 @@ const rawEmojis = {
     claim: '✋',
     unclaim: '↩️',
     transcript: '📄',
+    work: '💼',
+    daily: '🎁',
+    deposit: '📥',
+    withdraw: '📤',
+    transfer: '💸',
+    received: '📩',
+    gamble: '🎲',
+    win: '🎉',
+    lose: '😔',
+    fine: '🚨',
+    streak: '🔥',
+    clock: '⏰',
+    date: '📅',
   },
 
   // Items & Food
@@ -346,4 +362,91 @@ const rawEmojis = {
   },
 };
 
-module.exports = createSafeEmojiProxy(rawEmojis);
+// Prefer custom emojis (from ./emoji) over Unicode everywhere the names match.
+// Unicode fallbacks live in FALLBACK_EMOJIS (see ./emoji) for guilds/contexts
+// where the custom ID is not available.
+let CUSTOM = {};
+try {
+  ({ CUSTOM_EMOJIS: CUSTOM } = require('./emoji'));
+} catch {
+  CUSTOM = {};
+}
+
+const CUSTOM_ALIASES = {
+  // Categories that do not share the custom name directly.
+  setup: 'developer',
+  utility: 'slash',
+  fun: 'particles',
+  social: 'chats',
+  image: 'draw',
+  economy: 'bitcoin',
+  messages: 'mail',
+  tools: 'light',
+  premium: 'emerald',
+  levelling: 'rocket',
+  invites: 'link',
+  welcome: 'newbie',
+  verification: 'verified',
+  tickets: 'ticket',
+  notifier: 'notify',
+  modmail: 'mail',
+  join2create: 'undeafen',
+  reactionrole: 'emoji',
+  'reaction role': 'emoji',
+  suggestion: 'light',
+  // UI / common aliases
+  games: 'game',
+  moderation: 'mod',
+  arrow: 'right',
+  arrow_right: 'right',
+  back: 'left',
+  celebration: 'giveaway',
+  crown: 'owner',
+  shield: 'defence',
+  daily: 'gift',
+  streak: 'fire',
+  success: 'tick',
+  check: 'tick',
+};
+
+function applyCustomEmojis(obj) {
+  for (const [key, value] of Object.entries(obj)) {
+    if (value && typeof value === 'object' && !Array.isArray(value)) {
+      applyCustomEmojis(value);
+    } else if (typeof value === 'string') {
+      const customKey = CUSTOM_ALIASES[key] || key;
+      if (CUSTOM[customKey]) {
+        obj[key] = CUSTOM[customKey];
+      } else if (CUSTOM[key]) {
+        obj[key] = CUSTOM[key];
+      }
+    }
+  }
+}
+
+applyCustomEmojis(rawEmojis);
+
+/**
+ * Return the normal Unicode fallback for a custom key (see ./emoji).
+ * Use when the guild cannot render the custom ID.
+ */
+function getUnicodeFallback(key) {
+  try {
+    const { FALLBACK_EMOJIS, getFallbackEmoji } = require('./emoji');
+    if (getFallbackEmoji) {
+      const v = getFallbackEmoji(key);
+      if (v) return v;
+    }
+    if (FALLBACK_EMOJIS && FALLBACK_EMOJIS[key]) return FALLBACK_EMOJIS[key];
+  } catch {}
+  // Safe defaults for navigation.
+  const NAV = { left: '⬅️', right: '➡️', up: '⬆️', down: '⬇️', home: '🏠', back: '⬅️', next: '➡️', arrow: '➡️', arrow_right: '➡️' };
+  return NAV[key] || '';
+}
+
+const proxied = createSafeEmojiProxy(rawEmojis);
+
+// Attach fallback helper without changing the proxy's normal behaviour.
+proxied.getUnicodeFallback = getUnicodeFallback;
+
+module.exports = proxied;

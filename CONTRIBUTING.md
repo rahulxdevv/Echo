@@ -1,5 +1,7 @@
 # Contributing to Echo 🚀
 
+> Maintainer: Rahul (GitHub: [@rahulxdevv](https://github.com/rahulxdevv) - account name: rahulxdevv)
+
 Thank you for your interest in contributing to **Echo**! Whether you want to report a bug, suggest an enhancement, or submit a pull request for a new feature, this guide will help you get started.
 
 ---

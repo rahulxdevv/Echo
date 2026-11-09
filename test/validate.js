@@ -36,7 +36,7 @@ function getAllFiles(dir, filter = f => f.endsWith('.js')) {
   return results;
 }
 
-console.log('\n\x1b[1m\x1b[36m=== ECHO DISCORD BOT — AUTOMATED VALIDATION SUITE ===\x1b[0m\n');
+console.log('\n\x1b[1m\x1b[36m=== ECHO DISCORD BOT - AUTOMATED VALIDATION SUITE ===\x1b[0m\n');
 
 // -------------------------------------------------------------
 // 1. SYNTAX & COMPILATION CHECK
