@@ -122,7 +122,12 @@ async function startBot() {
         }
       });
 
+      client.riffy.on("trackError", async (player, track, error) => {
+        log("Error", `Track error: ${error.message}`);
+      });
+
       client.riffy.on("queueEnd", async (player) => {
+        if (player.current || player.playing) return;
         const channel = client.channels.cache.get(player.textChannel);
         const autoplay = false;
         if (autoplay) {
