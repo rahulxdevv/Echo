@@ -3,7 +3,7 @@ const { REST, Routes } = require('discord.js');
 const chalk = require('chalk');
 const { cacheGuildInvites } = require('../utils/invites');
 const Giveaway = require('../models/Giveaway');
-const { endGiveaway, buildGiveawayContainer } = require('../utils/giveaway');
+const { endGiveaway, buildGiveawayContainer, buildGiveawayPayload } = require('../utils/giveaway');
 const { startPolling } = require('../utils/notifierPoller');
 const TempRole = require('../models/TempRole');
 const {
@@ -84,7 +84,8 @@ module.exports = {
         const now = new Date();
         const expiredGiveaways = await Giveaway.find({
           ended: false,
-          endTime: { $lte: now }
+          paused: { $ne: true },
+          endTime: { $ne: null, $lte: now }
         });
 
         for (const giveaway of expiredGiveaways) {
@@ -92,12 +93,12 @@ module.exports = {
             const result = await endGiveaway(giveaway.messageId);
 
             if (result) {
-              const { giveaway: updatedGiveaway, winners } = result;
+              const { giveaway: updatedGiveaway, winners, noParticipants } = result;
 
               const channel = await client.channels.fetch(updatedGiveaway.channelId);
               const message = await channel.messages.fetch(updatedGiveaway.messageId);
 
-              let winnerText = 'No valid participants!';
+              let winnerText = noParticipants ? 'No one entered' : 'No valid participants!';
               if (winners.length > 0) {
                 winnerText = winners.map(id => `<@${id}>`).join(', ');
               }
@@ -107,21 +108,25 @@ module.exports = {
                 winners: updatedGiveaway.winners,
                 endTime: updatedGiveaway.endTime,
                 hostId: updatedGiveaway.hostId,
-                participantsCount: updatedGiveaway.participants.length,
+                participantsCount: (updatedGiveaway.participants || []).length,
                 isEnded: true,
                 isReroll: false,
+                isDrop: updatedGiveaway.type === 'drop',
+                unclaimed: updatedGiveaway.type === 'drop' && winners.length === 0,
+                dropEmoji: updatedGiveaway.dropEmoji,
                 winnerText,
                 banner: updatedGiveaway.banner,
-                thumbnail: updatedGiveaway.thumbnail
+                thumbnail: updatedGiveaway.thumbnail,
+                color: updatedGiveaway.color,
+                title: updatedGiveaway.title
               });
 
-              await message.edit({
-                flags: MessageFlags.IsComponentsV2,
-                components: [container]
-              });
+              await message.edit(buildGiveawayPayload(container));
 
               if (winners.length > 0) {
                 await channel.send(`Congratulations ${winnerText}! You won **${updatedGiveaway.prize}**!`);
+              } else {
+                await channel.send(`Giveaway for **${updatedGiveaway.prize}** ended with **no participants** - no winners this time.`);
               }
             }
           } catch (error) {

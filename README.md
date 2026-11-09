@@ -1,4 +1,6 @@
-# Echo — Advanced Multi-Purpose Discord Bot
+# Echo - Advanced Multi-Purpose Discord Bot
+
+> Maintainer: Rahul (GitHub: [@rahulxdevv](https://github.com/rahulxdevv))
 
 A premium, feature-rich multi-category Discord bot built with `discord.js` v14 using **Components V2** for all responses. Supports both prefix and slash commands with MongoDB-backed persistence, a full music system, economy, advanced moderation, and a suite of server management tools.
 
@@ -7,7 +9,7 @@ A premium, feature-rich multi-category Discord bot built with `discord.js` v14 u
 ## Highlights
 
 - **Prefix & Slash command** support across all categories
-- **Components V2** throughout — no plain embeds, premium UI everywhere
+- **Components V2** throughout - no plain embeds, premium UI everywhere
 - **Canvas banner** in the help menu (dynamically generated with bot avatar)
 - **MongoDB** persistence for economy, moderation, levelling, tickets, modmail, and more
 - **Music** via Riffy + Lavalink with canvas now-playing cards
@@ -91,10 +93,10 @@ src/
   commands/
     automod/          Automated moderation rules
     economy/          Wallet, bank, shop, gambling
-    fun/              fun.js — 15 subcommands
+    fun/              fun.js - 15 subcommands
     games/            Trivia, tictactoe, dice, guess
     giveaway/         Giveaway management
-    image/            image.js — 18 subcommands (animals, text effects, media)
+    image/            image.js - 18 subcommands (animals, text effects, media)
     info/             Help menu, avatar, serverinfo, userinfo
     invites/          Invite tracking and stats
     join2create/      Dynamic voice channel creation
@@ -451,7 +453,7 @@ Powered by Riffy + Lavalink:
 
 ### Adding subcommands to an existing group
 
-For categories like `/fun`, `/image` — add a new `.addSubcommand()` entry to the `data` builder and a matching `case` in the handler switch.
+For categories like `/fun`, `/image` - add a new `.addSubcommand()` entry to the `data` builder and a matching `case` in the handler switch.
 
 ### Using GIFs in social commands
 

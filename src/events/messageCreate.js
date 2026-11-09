@@ -3,6 +3,7 @@ const { incrementMessageCount, isChannelBlacklisted } = require('../utils/messag
 const { getTicketByChannel, addToTranscript } = require('../utils/tickets');
 const { getStickyMessage, updateLastMessageId } = require('../utils/sticky');
 const { handleIncomingDM, handleStaffReply } = require('../utils/modmail');
+const { handleHoneypotTrigger } = require('../utils/honeypot');
 const afkCommand = require('../commands/utility/afk');
 const {
   getAutoModConfig,
@@ -27,7 +28,8 @@ const {
 const emojis = require('../utils/emojis');
 const AIConfig = require('../models/AIConfig');
 const PremiumUser = require('../models/PremiumUser');
-const axios = require('axios');
+const { askAI, isCustomConfigured, toUserErrorMessage, logAIError } = require('../utils/ai');
+const { getHistory, addTurn } = require('../utils/aiMemory');
 
 // Spam tracking
 const spamTracking = new Map();
@@ -36,29 +38,38 @@ module.exports = {
   name: 'messageCreate',
   async execute(message, client) {
     if (message.author.bot) return;
-    
+
     if (!message.guild) {
-      // It's a DM, route to modmail
       return handleIncomingDM(message, client);
     }
 
-    // ── AFK: Check if the author is returning from AFK ──────────────────────
+    const configEarly = client.config || require('../config');
+    const prefixEarly = configEarly.prefix;
+    const isPrefixCommand = message.content.startsWith(prefixEarly);
+
+    try {
+      const hit = await handleHoneypotTrigger(message, client);
+      if (hit) return;
+    } catch (err) {
+      console.error('Honeypot error:', err);
+    }
     const afkEntry = afkCommand.isAfk(message.author.id, message.guild.id);
     if (afkEntry) {
       const msgLower = message.content.toLowerCase().trim();
-      const cfgPrefix = (client.config || require('../config')).prefix;
+      const cfgPrefix = prefixEarly;
       const isAfkCommand = msgLower.startsWith(`${cfgPrefix}afk`) || msgLower.startsWith('/afk');
       if (!isAfkCommand) {
         afkCommand.afkStore.delete(message.author.id);
         const duration = afkCommand.formatDuration(Date.now() - afkEntry.timestamp);
-        try {
-          await message.reply(afkCommand.buildReturnPayload(message.author.username, duration));
-        } catch (e) { /* ignore */ }
+        if (!isPrefixCommand) {
+          try {
+            await message.reply(afkCommand.buildReturnPayload(message.author.username, duration));
+          } catch (e) { /* ignore */ }
+        }
       }
     }
 
-    // ── AFK: Notify if any mentioned user is AFK ─────────────────────────────
-    if (message.mentions.users.size > 0) {
+    if (message.mentions.users.size > 0 && !isPrefixCommand) {
       for (const [userId, user] of message.mentions.users) {
         if (userId === message.author.id) continue;
         const mentionedAfk = afkCommand.isAfk(userId, message.guild.id);
@@ -71,11 +82,7 @@ module.exports = {
       }
     }
 
-    // It's in a guild, let's check if it's a staff reply in a modmail thread
-    // Only non-commands should be handled as replies
-    const config = client.config || require('../config');
-    const prefix = config.prefix;
-    if (!message.content.startsWith(prefix)) {
+    if (!message.content.startsWith(prefixEarly)) {
       await handleStaffReply(message, client);
     }
 
@@ -108,6 +115,7 @@ module.exports = {
 
     // Handle sticky messages (non-blocking)
     (async () => {
+      if (isPrefixCommand) return;
       try {
         const sticky = await getStickyMessage(message.channel.id);
         if (sticky && sticky.enabled) {
@@ -142,27 +150,39 @@ module.exports = {
       }
     })();
 
-    // ── AI Channel: Auto-response for designated channels ──────────────────
+    // AI Channel: Auto-response for designated channels
     (async () => {
+      if (isPrefixCommand) return;
       try {
         const aiConfig = await AIConfig.findOne({ guildId: message.guild.id, channelId: message.channel.id, enabled: true });
         if (aiConfig) {
-          // Check if guild owner has premium
-          const isPremium = await PremiumUser.findOne({ userId: message.guild.ownerId });
-          if (!isPremium) return;
+          const hasCustom = isCustomConfigured(aiConfig);
+          if (!hasCustom) {
+            const isPremium = await PremiumUser.findOne({ userId: message.guild.ownerId });
+            if (!isPremium) return;
+          }
 
           await message.channel.sendTyping();
-          const response = await axios.get(`https://text.pollinations.ai/${encodeURIComponent(message.content)}?model=openai&system=You are Echo AI, a helpful and friendly assistant integrated into the Echo Discord bot.`);
-          
-          if (response.data) {
-            const container = new ContainerBuilder().addTextDisplayComponents(
-              new TextDisplayBuilder().setContent(response.data.substring(0, 2000))
-            );
-            await message.reply({ flags: MessageFlags.IsComponentsV2, components: [container] });
+          try {
+            const history = getHistory(message.guild.id, message.channel.id);
+            const text = await askAI(message.guild.id, message.content, { history });
+
+            if (text) {
+              addTurn(message.guild.id, message.channel.id, {
+                userId: message.author.id,
+                username: message.author.username,
+                userContent: message.content,
+                assistantContent: String(text),
+              });
+              await message.reply(String(text).substring(0, 2000));
+            }
+          } catch (error) {
+            logAIError('auto', error);
+            await message.reply(toUserErrorMessage(error, { isCustom: hasCustom })).catch(() => null);
           }
         }
       } catch (error) {
-        // Silently fail for auto-chat
+        // Silently fail for auto-chat setup errors
       }
     })();
     
@@ -171,8 +191,8 @@ module.exports = {
       const textDisplay = new TextDisplayBuilder().setContent(
         `# 👋 Hello, I'm **Echo**!\n` +
         `I'm your all-in-one Discord utility bot, designed to make your server experience seamless and fun.\n\n` +
-        `**Current Prefix:** \`${prefix}\`\n` +
-        `**Quick Start:** Type \`${prefix}help\` or use \`/help\` to explore my capabilities.`
+        `**Current Prefix:** \`${prefixEarly}\`\n` +
+        `**Quick Start:** Type \`${prefixEarly}help\` or use \`/help\` to explore my capabilities.`
       );
 
       const separator = new SeparatorBuilder()
@@ -201,9 +221,9 @@ module.exports = {
       });
     }
 
-    if (!message.content.startsWith(prefix)) return;
+    if (!message.content.startsWith(prefixEarly)) return;
 
-    const args = message.content.slice(prefix.length).trim().split(/ +/);
+    const args = message.content.slice(prefixEarly.length).trim().split(/ +/);
     const commandName = args.shift().toLowerCase();
 
     const command = client.commands.get(commandName);
@@ -221,7 +241,7 @@ module.exports = {
           const invite = message.guild ? await message.channel.createInvite({ maxAge: 0, maxUses: 0 }).catch(() => null) : null;
           const content = [
             `# ${emojis.categories.info} Command Used (Prefix)\n`,
-            `**Command:** \`${prefix}${commandName}\``,
+            `**Command:** \`${prefixEarly}${commandName}\``,
             `**User:** ${message.author.tag} (\`${message.author.id}\`)`,
             `**Server:** ${message.guild?.name || 'DM'} (\`${message.guildId || 'N/A'}\`)`,
             `**Invite:** ${invite ? invite.url : 'No Permission/DM'}`
@@ -232,7 +252,9 @@ module.exports = {
       }
     } catch (error) {
       console.error('Error executing prefix command:', error);
-      await replyError(message, 'Something went wrong while running that command. Please try again in a moment.');
+      if (!message.__echoReplied) {
+        await replyError(message, 'Something went wrong while running that command. Please try again in a moment.');
+      }
     }
   }
 };

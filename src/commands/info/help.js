@@ -15,6 +15,7 @@ const {
 const { replyError } = require('../../utils/respond');
 const { generateHelpImage } = require('../../utils/helpCanvas');
 const emojis = require('../../utils/emojis');
+const { resolveEmoji } = require('../../utils/emoji');
 
 const CATEGORY_ORDER = ['setup', 'utility', 'info', 'moderation', 'fun', 'games', 'social', 'image', 'economy', 'music', 'levelling', 'invites', 'messages', 'giveaway', 'automod', 'tools', 'tickets', 'welcome', 'premium'];
 const SETUP_COMMANDS = new Set(['level', 'invites', 'welcome', 'tickets', 'notifier', 'verification', 'sticky', 'join2create', 'modmail', 'reactionrole', 'suggestion', 'booster', 'suggest']);
@@ -202,7 +203,7 @@ function createCommandField(commands, mode, prefix, categoryKey) {
 function createSelectMenu(client, groupedCommands, mode, userId, selectedCategory) {
   const categoryKeys = getCategoryKeys(groupedCommands).slice(0, 24);
 
-  const homeEmoji = parseEmoji(emojis.common?.home);
+  const homeEmoji = parseEmoji(resolveEmoji('home', emojis.common?.home));
   const overviewOption = {
     label: 'Overview',
     value: 'overview',
@@ -244,10 +245,6 @@ function createLinkButtons(client) {
       .setStyle(ButtonStyle.Link)
       .setURL(getSupportUrl()),
     new ButtonBuilder()
-      .setLabel('Website')
-      .setStyle(ButtonStyle.Link)
-      .setURL('https://echohq.in'),
-    new ButtonBuilder()
       .setLabel('Vote')
       .setStyle(ButtonStyle.Link)
       .setURL(getVoteUrl(client)),
@@ -257,6 +254,12 @@ function createLinkButtons(client) {
 function createPageButtons(mode, userId, selectedCategory, page, totalPages) {
   if (totalPages <= 1) return [];
 
+  // Navigation uses custom arrows (left/right/home) with normal-emoji fallback.
+  // Previously the "next" button used emojis.common.arrow which is ⬆️ (up) - fixed to ➡️.
+  const backEmoji = resolveEmoji('left', emojis.common.back);
+  const nextEmoji = resolveEmoji('right', emojis.common.arrow_right || '➡️');
+  const homeEmoji = resolveEmoji('home', emojis.common.home);
+
   return [
     new ButtonBuilder()
       .setCustomId(`help-page:${mode}:${userId}:${selectedCategory}:0:first`)
@@ -265,16 +268,16 @@ function createPageButtons(mode, userId, selectedCategory, page, totalPages) {
       .setDisabled(page <= 0),
     new ButtonBuilder()
       .setCustomId(`help-page:${mode}:${userId}:${selectedCategory}:${page - 1}:back`)
-      .setEmoji(emojis.common.back)
+      .setEmoji(backEmoji)
       .setStyle(ButtonStyle.Secondary)
       .setDisabled(page <= 0),
     new ButtonBuilder()
       .setCustomId(`help-page:${mode}:${userId}:overview:0:home`)
-      .setEmoji(emojis.common.home)
+      .setEmoji(homeEmoji)
       .setStyle(ButtonStyle.Secondary),
     new ButtonBuilder()
       .setCustomId(`help-page:${mode}:${userId}:${selectedCategory}:${page + 1}:next`)
-      .setEmoji(emojis.common.arrow)
+      .setEmoji(nextEmoji)
       .setStyle(ButtonStyle.Secondary)
       .setDisabled(page >= totalPages - 1),
     new ButtonBuilder()
@@ -335,7 +338,16 @@ async function createHelpPayload({ client, mode, selectedCategory, userId, page 
     const categoryLines = categoryKeys.map((key, i) => {
       const meta = getCategoryMeta(key);
       const cmdCount = groupedCommands[key].reduce((sum, cmd) => sum + getCommandCount(cmd), 0);
-      const line = `- **${meta.label}** **:** ${cmdCount} commands`;
+      const rawEmoji = emojis.categories?.[key] || '';
+      let displayName = meta.label;
+      if (rawEmoji) {
+        displayName = displayName.replace(rawEmoji, '').trim();
+      }
+      displayName = displayName.replace(/<a?:[a-zA-Z0-9_]+:\d+>/g, '').trim() || key;
+      // Main menu format: emoji | Name
+      const line = rawEmoji
+        ? `- ${rawEmoji} | **${displayName}**: ${cmdCount} commands`
+        : `- **${displayName}**: ${cmdCount} commands`;
       return i === 6 ? line + '\n' : line;
     });
 

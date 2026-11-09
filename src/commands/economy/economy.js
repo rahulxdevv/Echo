@@ -1,8 +1,8 @@
-const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
+const { SlashCommandBuilder } = require('discord.js');
 const emojis = require('../../utils/emojis');
 const {
   formatCurrency,
-  formatDuration,
+  formatCountdown,
   getCooldownRemaining,
   getOrCreateUser,
   getShopItems,
@@ -10,7 +10,7 @@ const {
   resolveAmountInput,
   getNetWorth,
 } = require('../../utils/economy');
-const { replyError, replyWithCard } = require('../../utils/respond');
+const { replyError, replyNotice } = require('../../utils/respond');
 const User = require('../../models/User');
 
 // Constants
@@ -32,6 +32,36 @@ function pickJob() {
   const job = JOBS[Math.floor(Math.random() * JOBS.length)];
   const earned = Math.floor(Math.random() * (job.max - job.min + 1)) + job.min;
   return { job, earned };
+}
+
+function walletLine(userData) {
+  return `${emojis.economy.wallet} Wallet **${formatCurrency(userData.balance)}**`;
+}
+
+function balanceLine(userData) {
+  return `${emojis.economy.wallet} Wallet **${formatCurrency(userData.balance)}** · ${emojis.economy.bank} Bank **${formatCurrency(userData.bank)}**`;
+}
+
+/**
+ * DM a user, falling back to a channel message (mentioning them) when their DMs are closed.
+ */
+async function notifyUser(user, dmContent, { channel, fallbackContent } = {}) {
+  if (!user) return false;
+
+  if (typeof user.send === 'function') {
+    try {
+      await user.send(dmContent);
+      return true;
+    } catch {
+      // DMs closed or user unreachable - fall back below.
+    }
+  }
+
+  if (channel?.send && fallbackContent) {
+    await channel.send(fallbackContent).catch(() => null);
+  }
+
+  return false;
 }
 
 module.exports = {
@@ -165,21 +195,13 @@ module.exports = {
     try {
       const userData = await getOrCreateUser(user);
 
-      await replyWithCard(target, {
-        color: 0x00d26a,
-        title: `${user.username}'s Balance`,
-        description: 'Wallet, bank, and total funds.',
-        thumbnail: { url: user.displayAvatarURL({ dynamic: true }) },
-        fields: [
-          { name: 'Wallet', value: formatCurrency(userData.balance), inline: true },
-          { name: 'Bank', value: formatCurrency(userData.bank), inline: true },
-          { name: 'Total', value: formatCurrency(userData.balance + userData.bank), inline: true },
-        ],
-        timestamp: new Date().toISOString(),
-      });
+      await replyNotice(
+        target,
+        `${emojis.economy.wallet} **${user.username}** - Wallet **${formatCurrency(userData.balance)}** · ${emojis.economy.bank} Bank **${formatCurrency(userData.bank)}** · ${emojis.economy.money} Total **${formatCurrency(userData.balance + userData.bank)}**`
+      );
     } catch (error) {
       console.error('Balance error:', error);
-      await replyError(target, 'I could not load that balance right now.');
+      await replyError(target, `I couldn't load that balance right now. Please try again in a moment.`);
     }
   },
 
@@ -191,7 +213,10 @@ module.exports = {
       const cooldownRemaining = getCooldownRemaining(userData.lastWork, WORK_COOLDOWN);
 
       if (cooldownRemaining > 0) {
-        return replyError(target, `You can work again in ${formatDuration(cooldownRemaining)}.`);
+        return replyNotice(
+          target,
+          `${emojis.economy.clock} You're still tired from your last shift - you can work again in **${formatCountdown(cooldownRemaining)}**.`
+        );
       }
 
       const { job, earned } = pickJob();
@@ -199,19 +224,13 @@ module.exports = {
       userData.lastWork = new Date();
       await userData.save();
 
-      return replyWithCard(target, {
-        color: 0x00d26a,
-        title: 'Work Complete',
-        description: `You worked as a **${job.name}** and earned **${formatCurrency(earned)}**.`,
-        fields: [
-          { name: 'Wallet', value: formatCurrency(userData.balance), inline: true },
-          { name: 'Bank', value: formatCurrency(userData.bank), inline: true },
-        ],
-        timestamp: new Date().toISOString(),
-      });
+      return replyNotice(
+        target,
+        `${emojis.economy.work} You worked as a **${job.name}** and earned about **${formatCurrency(earned)}**!\n${walletLine(userData)}`
+      );
     } catch (error) {
       console.error('Work error:', error);
-      await replyError(target, 'I could not complete your work payout right now.');
+      await replyError(target, `Something went wrong while paying you for your shift. Please try again.`);
     }
   },
 
@@ -223,7 +242,10 @@ module.exports = {
       const cooldownRemaining = getCooldownRemaining(userData.lastDaily, DAILY_COOLDOWN);
 
       if (cooldownRemaining > 0) {
-        return replyError(target, `Your next daily reward is ready in ${formatDuration(cooldownRemaining)}.`);
+        return replyNotice(
+          target,
+          `${emojis.economy.clock} Your daily is already claimed - come back in **${formatCountdown(cooldownRemaining)}**.`
+        );
       }
 
       if (userData.lastDaily && Date.now() - new Date(userData.lastDaily).getTime() > DAILY_STREAK_RESET) {
@@ -240,20 +262,14 @@ module.exports = {
       userData.dailyStreak = nextStreak;
       await userData.save();
 
-      return replyWithCard(target, {
-        color: 0x00d26a,
-        title: 'Daily Reward Claimed',
-        description: `You received **${formatCurrency(totalReward)}**.`,
-        fields: [
-          { name: 'Base reward', value: formatCurrency(baseReward), inline: true },
-          { name: 'Streak bonus', value: `${formatCurrency(streakBonus)} (${nextStreak} days)`, inline: true },
-          { name: 'Wallet', value: formatCurrency(userData.balance), inline: true },
-        ],
-        timestamp: new Date().toISOString(),
-      });
+      return replyNotice(
+        target,
+        `${emojis.economy.daily} You have claimed **${formatCurrency(totalReward)}** as your daily reward!\n` +
+        `${emojis.economy.clock} You can claim again after **${formatCountdown(DAILY_COOLDOWN)}** · ${emojis.economy.streak} **${nextStreak} day streak**`
+      );
     } catch (error) {
       console.error('Daily error:', error);
-      await replyError(target, 'I could not claim your daily reward right now.');
+      await replyError(target, `I couldn't hand out your daily reward right now. Please try again.`);
     }
   },
 
@@ -262,7 +278,7 @@ module.exports = {
     const amountInput = isPrefix ? args[0] : target.options.getString('amount');
 
     if (!amountInput) {
-      return replyError(target, 'Please specify an amount to deposit (or "all"/"half").');
+      return replyError(target, `${emojis.economy.deposit} How much do you want to deposit? Try a number, \`all\`, or \`half\`.`);
     }
 
     try {
@@ -270,31 +286,24 @@ module.exports = {
       const amount = resolveAmountInput(amountInput, userData.balance);
 
       if (!amount || amount < 1) {
-        return replyError(target, 'Please provide a valid amount to deposit.');
+        return replyError(target, `${emojis.economy.deposit} That amount doesn't look right. Try a number like \`500\`, \`all\`, or \`half\`.`);
       }
 
       if (amount > userData.balance) {
-        return replyError(target, `You only have ${formatCurrency(userData.balance)} in your wallet.`);
+        return replyError(target, `${emojis.economy.wallet} You only have **${formatCurrency(userData.balance)}** in your wallet - that's not enough to deposit.`);
       }
 
       userData.balance -= amount;
       userData.bank += amount;
       await userData.save();
 
-      return replyWithCard(target, {
-        color: 0x00d26a,
-        title: 'Deposit Successful',
-        description: `You deposited **${formatCurrency(amount)}** into your bank.`,
-        fields: [
-          { name: 'Wallet', value: formatCurrency(userData.balance), inline: true },
-          { name: 'Bank', value: formatCurrency(userData.bank), inline: true },
-          { name: 'Total', value: formatCurrency(userData.balance + userData.bank), inline: true },
-        ],
-        timestamp: new Date().toISOString(),
-      });
+      return replyNotice(
+        target,
+        `${emojis.economy.deposit} You successfully deposited **${formatCurrency(amount)}** in your bank!\n${balanceLine(userData)}`
+      );
     } catch (error) {
       console.error('Deposit error:', error);
-      await replyError(target, 'I could not complete your deposit right now.');
+      await replyError(target, `Something went wrong with that deposit. Your money is still in your wallet - please try again.`);
     }
   },
 
@@ -303,7 +312,7 @@ module.exports = {
     const amountInput = isPrefix ? args[0] : target.options.getString('amount');
 
     if (!amountInput) {
-      return replyError(target, 'Please specify an amount to withdraw (or "all"/"half").');
+      return replyError(target, `${emojis.economy.withdraw} How much do you want to withdraw? Try a number, \`all\`, or \`half\`.`);
     }
 
     try {
@@ -311,31 +320,24 @@ module.exports = {
       const amount = resolveAmountInput(amountInput, userData.bank);
 
       if (!amount || amount < 1) {
-        return replyError(target, 'Please provide a valid amount to withdraw.');
+        return replyError(target, `${emojis.economy.withdraw} That amount doesn't look right. Try a number like \`500\`, \`all\`, or \`half\`.`);
       }
 
       if (amount > userData.bank) {
-        return replyError(target, `You only have ${formatCurrency(userData.bank)} in your bank.`);
+        return replyError(target, `${emojis.economy.bank} You only have **${formatCurrency(userData.bank)}** in your bank - that's not enough to withdraw.`);
       }
 
       userData.bank -= amount;
       userData.balance += amount;
       await userData.save();
 
-      return replyWithCard(target, {
-        color: 0x00d26a,
-        title: 'Withdrawal Successful',
-        description: `You withdrew **${formatCurrency(amount)}** from your bank.`,
-        fields: [
-          { name: 'Wallet', value: formatCurrency(userData.balance), inline: true },
-          { name: 'Bank', value: formatCurrency(userData.bank), inline: true },
-          { name: 'Total', value: formatCurrency(userData.balance + userData.bank), inline: true },
-        ],
-        timestamp: new Date().toISOString(),
-      });
+      return replyNotice(
+        target,
+        `${emojis.economy.withdraw} You withdrew **${formatCurrency(amount)}** from your bank!\n${balanceLine(userData)}`
+      );
     } catch (error) {
       console.error('Withdraw error:', error);
-      await replyError(target, 'I could not complete your withdrawal right now.');
+      await replyError(target, `Something went wrong with that withdrawal. Your money is still in the bank - please try again.`);
     }
   },
 
@@ -345,26 +347,26 @@ module.exports = {
     const amount = isPrefix ? parseInt(args[1]) : target.options.getInteger('amount');
 
     if (!recipient) {
-      return replyError(target, 'Please mention a user to transfer money to.');
+      return replyError(target, `${emojis.economy.transfer} Who should receive this? Mention a user to transfer money to.`);
     }
 
     if (recipient.id === sender.id) {
-      return replyError(target, 'You cannot transfer money to yourself.');
+      return replyError(target, `${emojis.economy.transfer} Sending money to yourself won't do much - pick someone else!`);
     }
 
     if (recipient.bot) {
-      return replyError(target, 'You cannot transfer money to bots.');
+      return replyError(target, `${emojis.economy.transfer} Bots don't have wallets. Try a real person instead!`);
     }
 
     if (!amount || amount < 1) {
-      return replyError(target, 'Please provide a valid amount to transfer.');
+      return replyError(target, `${emojis.economy.transfer} That amount doesn't look right. Try a number like \`500\`.`);
     }
 
     try {
       const senderData = await getOrCreateUser(sender);
 
       if (amount > senderData.balance) {
-        return replyError(target, `You only have ${formatCurrency(senderData.balance)} in your wallet.`);
+        return replyError(target, `${emojis.economy.wallet} You only have **${formatCurrency(senderData.balance)}** in your wallet - that's not enough to send.`);
       }
 
       const recipientData = await getOrCreateUser(recipient);
@@ -375,19 +377,26 @@ module.exports = {
       await senderData.save();
       await recipientData.save();
 
-      return replyWithCard(target, {
-        color: 0x00d26a,
-        title: 'Transfer Successful',
-        description: `You transferred **${formatCurrency(amount)}** to ${recipient.tag}.`,
-        fields: [
-          { name: 'Your Wallet', value: formatCurrency(senderData.balance), inline: true },
-          { name: 'Their Wallet', value: formatCurrency(recipientData.balance), inline: true },
-        ],
-        timestamp: new Date().toISOString(),
-      });
+      const sentAt = Math.floor(Date.now() / 1000);
+
+      const reply = await replyNotice(
+        target,
+        `${emojis.economy.transfer} Your **${formatCurrency(amount)}** has been transferred to **<@${recipient.id}>** at **<t:${sentAt}:f>**!\n${walletLine(senderData)}`
+      );
+
+      await notifyUser(
+        recipient,
+        `${emojis.economy.received} You received **${formatCurrency(amount)}** from **${sender.username}**!`,
+        {
+          channel: target.channel,
+          fallbackContent: `${emojis.economy.received} <@${recipient.id}>, you received **${formatCurrency(amount)}** from **${sender.username}**!`
+        }
+      );
+
+      return reply;
     } catch (error) {
       console.error('Transfer error:', error);
-      await replyError(target, 'I could not complete your transfer right now.');
+      await replyError(target, `Something went wrong with that transfer. Please try again in a moment.`);
     }
   },
 
@@ -396,7 +405,7 @@ module.exports = {
     const amountInput = isPrefix ? args[0] : target.options.getString('amount');
 
     if (!amountInput) {
-      return replyError(target, 'Please specify an amount to gamble (or "all"/"half").');
+      return replyError(target, `${emojis.economy.gamble} Place a bet first - try \`100\`, \`all\`, or \`half\`.`);
     }
 
     try {
@@ -404,11 +413,11 @@ module.exports = {
       const amount = resolveAmountInput(amountInput, userData.balance);
 
       if (!amount || amount < 1) {
-        return replyError(target, 'Please provide a valid amount to gamble.');
+        return replyError(target, `${emojis.economy.gamble} That bet doesn't look right. Try a number like \`100\`, \`all\`, or \`half\`.`);
       }
 
       if (amount > userData.balance) {
-        return replyError(target, `You only have ${formatCurrency(userData.balance)} in your wallet.`);
+        return replyError(target, `${emojis.economy.gamble} You only have **${formatCurrency(userData.balance)}** in your wallet - you can't bet that much.`);
       }
 
       const won = Math.random() > 0.5;
@@ -423,22 +432,20 @@ module.exports = {
 
       await userData.save();
 
-      return replyWithCard(target, {
-        color: won ? 0x00d26a : 0xff4444,
-        title: won ? `${emojis.economy.slots} You Won!` : `${emojis.economy.slots} You Lost!`,
-        description: won
-          ? `You gambled **${formatCurrency(amount)}** and won **${formatCurrency(winnings)}**!`
-          : `You gambled **${formatCurrency(amount)}** and lost **${formatCurrency(winnings)}**.`,
-        fields: [
-          { name: 'Wallet', value: formatCurrency(userData.balance), inline: true },
-          { name: 'Result', value: won ? `+${formatCurrency(winnings)}` : `-${formatCurrency(winnings)}`, inline: true },
-        ],
-        footer: { text: won ? 'Lady luck is on your side!' : 'Better luck next time!' },
-        timestamp: new Date().toISOString(),
-      });
+      if (won) {
+        return replyNotice(
+          target,
+          `${emojis.economy.win} Congrats! You bet **${formatCurrency(amount)}** and won **${formatCurrency(winnings)}**!\n${walletLine(userData)}`
+        );
+      }
+
+      return replyNotice(
+        target,
+        `${emojis.economy.lose} Tough luck! You bet **${formatCurrency(amount)}** and lost **${formatCurrency(winnings)}**.\n${walletLine(userData)}`
+      );
     } catch (error) {
       console.error('Gamble error:', error);
-      await replyError(target, 'I could not complete your gamble right now.');
+      await replyError(target, `The table closed on you - nothing was lost. Please try again in a moment.`);
     }
   },
 
@@ -447,15 +454,15 @@ module.exports = {
     const victim = isPrefix ? target.mentions.users.first() : target.options.getUser('user');
 
     if (!victim) {
-      return replyError(target, 'Please mention a user to rob.');
+      return replyError(target, `${emojis.economy.rob} Who are you trying to rob? Mention a user.`);
     }
 
     if (victim.id === robber.id) {
-      return replyError(target, 'You cannot rob yourself.');
+      return replyError(target, `${emojis.economy.rob} Robbing yourself? That's just moving your own money around.`);
     }
 
     if (victim.bot) {
-      return replyError(target, 'You cannot rob bots.');
+      return replyError(target, `${emojis.economy.rob} Bots keep their wallets empty - pick a real target.`);
     }
 
     try {
@@ -463,17 +470,26 @@ module.exports = {
       const cooldownRemaining = getCooldownRemaining(robberData.lastRob, ROB_COOLDOWN);
 
       if (cooldownRemaining > 0) {
-        return replyError(target, `You can rob again in ${formatDuration(cooldownRemaining)}.`);
+        return replyNotice(
+          target,
+          `${emojis.economy.clock} Lay low for a while - you can rob again in **${formatCountdown(cooldownRemaining)}**.`
+        );
       }
 
       const victimData = await getOrCreateUser(victim);
 
       if (victimData.balance < 100) {
-        return replyError(target, `${victim.tag} doesn't have enough money to rob (minimum $100).`);
+        return replyNotice(
+          target,
+          `${emojis.economy.rob} **${victim.username}** is too broke to rob - they need at least **$100** in their wallet.`
+        );
       }
 
       const success = Math.random() > 0.5;
-      const amount = Math.floor(Math.random() * (victimData.balance * 0.3)) + 50;
+      const amount = Math.min(
+        victimData.balance,
+        Math.floor(Math.random() * (victimData.balance * 0.3)) + 50
+      );
 
       robberData.lastRob = new Date();
 
@@ -484,38 +500,60 @@ module.exports = {
         await robberData.save();
         await victimData.save();
 
-        return replyWithCard(target, {
-          color: 0x00d26a,
-          title: `${emojis.economy.money} Robbery Successful!`,
-          description: `You successfully robbed **${formatCurrency(amount)}** from ${victim.tag}!`,
-          fields: [
-            { name: 'Your Wallet', value: formatCurrency(robberData.balance), inline: true },
-            { name: 'Their Wallet', value: formatCurrency(victimData.balance), inline: true },
-          ],
-          footer: { text: 'You got away with it!' },
-          timestamp: new Date().toISOString(),
-        });
-      } else {
-        const fine = Math.floor(amount * 0.5);
-        robberData.balance = Math.max(0, robberData.balance - fine);
+        await notifyUser(
+          robber,
+          `${emojis.economy.rob} You robbed **${victim.username}** and got **${formatCurrency(amount)}** from their wallet!\n${walletLine(robberData)}`,
+          {
+            channel: target.channel,
+            fallbackContent: `${emojis.economy.rob} <@${robber.id}>, you robbed **${victim.username}** and got **${formatCurrency(amount)}**!`
+          }
+        );
 
-        await robberData.save();
+        await notifyUser(
+          victim,
+          `${emojis.economy.police} You were robbed by **${robber.username}**! **${formatCurrency(amount)}** was taken from your wallet.\n${walletLine(victimData)}`,
+          {
+            channel: target.channel,
+            fallbackContent: `${emojis.economy.police} <@${victim.id}>, you were robbed by **${robber.username}**! **${formatCurrency(amount)}** was taken from your wallet.`
+          }
+        );
 
-        return replyWithCard(target, {
-          color: 0xff4444,
-          title: `${emojis.economy.police} Robbery Failed!`,
-          description: `You got caught trying to rob ${victim.tag} and paid a fine of **${formatCurrency(fine)}**!`,
-          fields: [
-            { name: 'Your Wallet', value: formatCurrency(robberData.balance), inline: true },
-            { name: 'Fine Paid', value: formatCurrency(fine), inline: true },
-          ],
-          footer: { text: 'Better luck next time!' },
-          timestamp: new Date().toISOString(),
-        });
+        return replyNotice(
+          target,
+          `${emojis.economy.rob} You robbed **${victim.username}** and got **${formatCurrency(amount)}** from their wallet!\n${walletLine(robberData)}`
+        );
       }
+
+      const fine = Math.floor(amount * 0.5);
+      robberData.balance = Math.max(0, robberData.balance - fine);
+
+      await robberData.save();
+
+      await notifyUser(
+        robber,
+        `${emojis.economy.fine} Your robbery attempt on **${victim.username}** failed - you got caught and paid a **${formatCurrency(fine)}** fine.\n${walletLine(robberData)}`,
+        {
+          channel: target.channel,
+          fallbackContent: `${emojis.economy.fine} <@${robber.id}>, your robbery attempt on **${victim.username}** failed - you paid a **${formatCurrency(fine)}** fine.`
+        }
+      );
+
+      await notifyUser(
+        victim,
+        `${emojis.economy.police} **${robber.username}** tried to rob you, but got caught. Your money is safe!`,
+        {
+          channel: target.channel,
+          fallbackContent: `${emojis.economy.police} <@${victim.id}>, **${robber.username}** tried to rob you, but got caught. Your money is safe!`
+        }
+      );
+
+      return replyNotice(
+        target,
+        `${emojis.economy.fine} You got caught trying to rob **${victim.username}** and paid a **${formatCurrency(fine)}** fine!\n${walletLine(robberData)}`
+      );
     } catch (error) {
       console.error('Rob error:', error);
-      await replyError(target, 'I could not complete your robbery attempt right now.');
+      await replyError(target, `That heist fell apart before it began - nothing happened. Please try again.`);
     }
   },
 
@@ -524,19 +562,16 @@ module.exports = {
       const items = getShopItems();
 
       const itemList = items.map(item =>
-        `**${item.emoji} ${item.name}**\n💰 Price: ${formatCurrency(item.price)}\n🆔 ID: \`${item.id}\``
-      ).join('\n\n');
+        `${item.emoji} **${item.name}** · **${formatCurrency(item.price)}** · \`${item.id}\``
+      ).join('\n');
 
-      return replyWithCard(target, {
-        color: 0x00d26a,
-        title: `${emojis.economy.shop} Shop`,
-        description: itemList,
-        footer: { text: 'Use /economy buy <item_id> to purchase an item' },
-        timestamp: new Date().toISOString(),
-      });
+      return replyNotice(
+        target,
+        `${emojis.economy.shop} **Shop**\n${itemList}\n\nUse \`/economy buy <item_id>\` to purchase.`
+      );
     } catch (error) {
       console.error('Shop error:', error);
-      await replyError(target, 'I could not load the shop right now.');
+      await replyError(target, `The shop is closed right now. Please try again in a moment.`);
     }
   },
 
@@ -546,7 +581,11 @@ module.exports = {
     const quantity = isPrefix ? parseInt(args[1]) || 1 : target.options.getInteger('quantity') || 1;
 
     if (!itemId) {
-      return replyError(target, 'Please specify an item ID to buy.');
+      return replyError(target, `${emojis.economy.shop} Please specify an item ID to buy. Check the shop for IDs.`);
+    }
+
+    if (!Number.isInteger(quantity) || quantity < 1) {
+      return replyError(target, `${emojis.economy.shop} The quantity needs to be at least **1**.`);
     }
 
     try {
@@ -554,14 +593,17 @@ module.exports = {
       const item = shopItems[itemId];
 
       if (!item) {
-        return replyError(target, 'That item does not exist in the shop.');
+        return replyError(target, `${emojis.economy.shop} That item doesn't exist. Run the shop command to see what's available.`);
       }
 
       const totalCost = item.price * quantity;
       const userData = await getOrCreateUser(user);
 
       if (userData.balance < totalCost) {
-        return replyError(target, `You need ${formatCurrency(totalCost)} to buy ${quantity}x ${item.name}, but you only have ${formatCurrency(userData.balance)}.`);
+        return replyError(
+          target,
+          `${emojis.economy.wallet} You need **${formatCurrency(totalCost)}** to buy **${quantity}x ${item.name}**, but you only have **${formatCurrency(userData.balance)}**.`
+        );
       }
 
       userData.balance -= totalCost;
@@ -579,19 +621,13 @@ module.exports = {
 
       await userData.save();
 
-      return replyWithCard(target, {
-        color: 0x00d26a,
-        title: `${emojis.status.success} Purchase Successful`,
-        description: `You bought **${quantity}x ${item.emoji} ${item.name}** for **${formatCurrency(totalCost)}**.`,
-        fields: [
-          { name: 'Wallet', value: formatCurrency(userData.balance), inline: true },
-          { name: 'Total Spent', value: formatCurrency(totalCost), inline: true },
-        ],
-        timestamp: new Date().toISOString(),
-      });
+      return replyNotice(
+        target,
+        `${emojis.economy.shop} You bought **${quantity}x ${item.emoji} ${item.name}** for **${formatCurrency(totalCost)}**!\n${walletLine(userData)}`
+      );
     } catch (error) {
       console.error('Buy error:', error);
-      await replyError(target, 'I could not complete your purchase right now.');
+      await replyError(target, `Something went wrong with that purchase. Nothing was charged - please try again.`);
     }
   },
 
@@ -602,7 +638,10 @@ module.exports = {
       const userData = await getOrCreateUser(user);
 
       if (!userData.inventory || userData.inventory.length === 0) {
-        return replyError(target, 'Your inventory is empty. Visit the shop to buy items!');
+        return replyNotice(
+          target,
+          `${emojis.economy.inventory} Your inventory is empty - head to the shop and grab something!`
+        );
       }
 
       const shopItems = getShopItemMap();
@@ -612,17 +651,13 @@ module.exports = {
         return `${emoji} **${item.name}** x${item.quantity}`;
       }).join('\n');
 
-      return replyWithCard(target, {
-        color: 0x00d26a,
-        title: `${user.username}'s Inventory`,
-        description: inventoryList,
-        thumbnail: { url: user.displayAvatarURL({ dynamic: true }) },
-        footer: { text: `Total items: ${userData.inventory.length}` },
-        timestamp: new Date().toISOString(),
-      });
+      return replyNotice(
+        target,
+        `${emojis.economy.inventory} **${user.username}'s Inventory**\n${inventoryList}`
+      );
     } catch (error) {
       console.error('Inventory error:', error);
-      await replyError(target, 'I could not load your inventory right now.');
+      await replyError(target, `I couldn't open your inventory right now. Please try again.`);
     }
   },
 
@@ -638,7 +673,7 @@ module.exports = {
         case 'wallet':
           users = await User.find().sort({ balance: -1 }).limit(10);
           sortField = 'balance';
-          title = `${emojis.economy.money} Wallet Leaderboard`;
+          title = `${emojis.economy.wallet} Wallet Leaderboard`;
           break;
         case 'bank':
           users = await User.find().sort({ bank: -1 }).limit(10);
@@ -655,32 +690,23 @@ module.exports = {
       }
 
       if (users.length === 0) {
-        return replyError(target, 'No users found in the leaderboard.');
+        return replyNotice(target, `${emojis.economy.trophy} The leaderboard is empty - start earning to claim the top spot!`);
       }
 
       const leaderboardText = users.map((user, index) => {
         const medal = index === 0 ? emojis.economy.medal_1 : index === 1 ? emojis.economy.medal_2 : index === 2 ? emojis.economy.medal_3 : `${index + 1}.`;
-        let amount;
-        if (sortField === 'total') {
-          amount = formatCurrency(getNetWorth(user));
-        } else if (sortField === 'wallet') {
-          amount = formatCurrency(user.balance);
-        } else {
-          amount = formatCurrency(user.bank);
-        }
+        const amount = sortField === 'total'
+          ? formatCurrency(getNetWorth(user))
+          : sortField === 'wallet'
+            ? formatCurrency(user.balance)
+            : formatCurrency(user.bank);
         return `${medal} **${user.username}** - ${amount}`;
       }).join('\n');
 
-      return replyWithCard(target, {
-        color: 0x00d26a,
-        title: title,
-        description: leaderboardText,
-        footer: { text: `Top ${users.length} users` },
-        timestamp: new Date().toISOString(),
-      });
+      return replyNotice(target, `${title}\n${leaderboardText}`);
     } catch (error) {
       console.error('Leaderboard error:', error);
-      await replyError(target, 'I could not load the leaderboard right now.');
+      await replyError(target, `I couldn't load the leaderboard right now. Please try again.`);
     }
   },
 };

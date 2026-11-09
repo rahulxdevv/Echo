@@ -176,11 +176,15 @@ async function replyWithCard(target, embedLike, options = {}) {
   }
 
   if (typeof target.reply === 'function') {
-    return target.reply(payload);
+    const result = await target.reply(payload);
+    target.__echoReplied = true;
+    return result;
   }
 
   if (typeof target.send === 'function') {
-    return target.send(payload);
+    const result = await target.send(payload);
+    target.__echoReplied = true;
+    return result;
   }
 
   throw new Error('Target does not support replyWithCard.');
@@ -221,11 +225,15 @@ async function safeReply(target, payload) {
   }
 
   if (typeof target.reply === 'function') {
-    return target.reply(basePayload);
+    const result = await target.reply(basePayload);
+    target.__echoReplied = true;
+    return result;
   }
 
   if (typeof target.send === 'function') {
-    return target.send(basePayload);
+    const result = await target.send(basePayload);
+    target.__echoReplied = true;
+    return result;
   }
 
   throw new Error('Target does not support safeReply.');
