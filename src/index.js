@@ -59,6 +59,15 @@ client.riffy = new Riffy(client, nodes, {
 async function startBot() {
 
   try {
+    const missing = [];
+    if (!process.env.DISCORD_TOKEN) missing.push('DISCORD_TOKEN');
+    if (!process.env.MONGODB_URI) missing.push('MONGODB_URI');
+    if (!process.env.CLIENT_ID) missing.push('CLIENT_ID');
+    if (missing.length > 0) {
+      log('Error', `Missing required env vars: ${missing.join(', ')}. Set them in Dokploy before deploying.`);
+      process.exit(1);
+    }
+
     await connectDB();
 
     log("Events", "Loading events...");
