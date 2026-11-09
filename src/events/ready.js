@@ -25,7 +25,7 @@ module.exports = {
     setClient(client);
     client.commands = new Map();
     client.slashCommands = new Map();
-    client.riffy.init(client.user.id);
+    if (client.riffy) client.riffy.init(client.user.id);
 
     loadCommands(client);
 

@@ -27,6 +27,7 @@ function waitForConnection(player) {
 }
 
 async function resolveQuery(client, requester, query) {
+  if (!client.riffy) throw new Error('Music is not configured.');
   return client.riffy.resolve({ query, requester });
 }
 
@@ -227,6 +228,10 @@ module.exports = {
 
   // Handlers
   async handlePlay(target, args, client, isPrefix) {
+    if (!client.riffy) {
+      return replyError(target, 'Music is not configured.');
+    }
+
     const voiceChannel = target.member.voice.channel;
     if (!voiceChannel) {
       return replyError(target, 'You need to be in a voice channel to play music.');
