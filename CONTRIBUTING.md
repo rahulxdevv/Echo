@@ -32,7 +32,7 @@ Thank you for your interest in contributing to **Echo**! Whether you want to rep
 1. **Fork the repository** on GitHub: [https://github.com/rahulxdevv/Echo](https://github.com/rahulxdevv/Echo)
 2. **Clone your fork** locally:
    ```bash
-   git clone https://github.com/YOUR_USERNAME/Echo.git
+   git clone https://github.com/rahulxdevv/Echo.git
    cd Echo
    ```
 3. **Install dependencies**:

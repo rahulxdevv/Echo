@@ -55,7 +55,7 @@ CLIENT_ID=your_discord_client_id
 GIPHY_API_KEY=your_giphy_api_key
 TWITCH_CLIENT_ID=your_twitch_client_id
 TWITCH_CLIENT_SECRET=your_twitch_client_secret
-SUPPORT_SERVER_URL=https://discord.gg/your-server
+SUPPORT_SERVER_URL=https://discord.gg/eA3Xrj3mmb
 VOTE_URL=https://top.gg/bot/your_bot_id/vote
 ```
 

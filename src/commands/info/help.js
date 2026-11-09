@@ -60,7 +60,7 @@ function getInviteUrl(client) {
 }
 
 function getSupportUrl() {
-  return process.env.SUPPORT_SERVER_URL || process.env.SUPPORT_URL || 'https://discord.gg/your-server';
+  return process.env.SUPPORT_SERVER_URL || process.env.SUPPORT_URL || 'https://discord.gg/eA3Xrj3mmb';
 }
 
 function getVoteUrl(client) {
